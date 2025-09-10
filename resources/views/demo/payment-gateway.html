@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Payment Gateway Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">
+                🚀 Crypto Payment Gateway Demo
+            </h1>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <!-- Register Form -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-semibold mb-4">Register New User</h2>
+                    
+                    <form id="registerForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                            <input type="text" id="regName" required
+                                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                   placeholder="John Doe">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                            <input type="email" id="regEmail" required
+                                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                   placeholder="john@example.com">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                            <input type="password" id="regPassword" required
+                                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                   placeholder="Secure password">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+                            <input type="password" id="regPasswordConfirm" required
+                                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                   placeholder="Confirm password">
+                        </div>
+                        
+                        <button type="submit" id="registerBtn"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg">
+                            Register & Create Wallet
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Wallet Info -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-semibold mb-4">Wallet Information</h2>
+                    <div id="walletInfo" class="space-y-4">
+                        <p class="text-gray-500">Register to see your wallet information</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Address Section -->
+            <div id="addressSection" class="bg-white rounded-lg shadow-lg p-6 mt-8 hidden">
+                <h2 class="text-xl font-semibold mb-4">Generate New Address</h2>
+                
+                <div class="grid md:grid-cols-3 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Cryptocurrency</label>
+                        <select id="cryptoSelect" class="w-full p-3 border border-gray-300 rounded-lg">
+                            <option value="BTC">Bitcoin (BTC)</option>
+                            <option value="ETH">Ethereum (ETH)</option>
+                            <option value="USDT">Tether (USDT)</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Label (Optional)</label>
+                        <input type="text" id="addressLabel" 
+                               class="w-full p-3 border border-gray-300 rounded-lg"
+                               placeholder="My payment address">
+                    </div>
+                    
+                    <div class="flex items-end">
+                        <button id="generateAddressBtn"
+                                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg">
+                            Generate Address
+                        </button>
+                    </div>
+                </div>
+
+                <div id="generatedAddresses" class="space-y-4">
+                    <!-- Generated addresses will appear here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v1';
+        let currentToken = null;
+
+        // Register form handler
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const button = document.getElementById('registerBtn');
+            button.disabled = true;
+            button.textContent = 'Creating Account...';
+            
+            const payload = {
+                name: document.getElementById('regName').value,
+                email: document.getElementById('regEmail').value,
+                password: document.getElementById('regPassword').value,
+                password_confirmation: document.getElementById('regPasswordConfirm').value,
+                webhook_events: ['payment_received', 'payment_confirmed']
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentToken = data.data.token;
+                    displayWalletInfo(data.data);
+                    document.getElementById('addressSection').classList.remove('hidden');
+                    
+                    alert('✅ Account created successfully with HD wallet!');
+                } else {
+                    alert('❌ Error: ' + (data.message || 'Registration failed'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Registration failed: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Register & Create Wallet';
+            }
+        });
+
+        // Generate address handler
+        document.getElementById('generateAddressBtn').addEventListener('click', async function() {
+            if (!currentToken) {
+                alert('Please register first');
+                return;
+            }
+            
+            const button = this;
+            button.disabled = true;
+            button.textContent = 'Generating...';
+            
+            const payload = {
+                cryptocurrency: document.getElementById('cryptoSelect').value,
+                label: document.getElementById('addressLabel').value || null
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/crypto/wallet/addresses`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayGeneratedAddress(data.data);
+                    document.getElementById('addressLabel').value = '';
+                } else {
+                    alert('❌ Error: ' + (data.message || 'Address generation failed'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Address generation failed: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Generate Address';
+            }
+        });
+
+        function displayWalletInfo(data) {
+            const walletInfo = document.getElementById('walletInfo');
+            walletInfo.innerHTML = `
+                <div class="space-y-3">
+                    <div>
+                        <span class="font-medium">User:</span> ${data.user.name}
+                    </div>
+                    <div>
+                        <span class="font-medium">Email:</span> ${data.user.email}
+                    </div>
+                    <div>
+                        <span class="font-medium">API Key:</span> 
+                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">${data.user.api_key}</code>
+                    </div>
+                    <div>
+                        <span class="font-medium">Wallet ID:</span> ${data.wallet.id}
+                    </div>
+                    <div class="text-sm text-green-600">
+                        ✅ HD Wallet created with initial addresses for all supported cryptocurrencies
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayGeneratedAddress(address) {
+            const container = document.getElementById('generatedAddresses');
+            
+            const addressDiv = document.createElement('div');
+            addressDiv.className = 'bg-gray-50 p-4 rounded-lg border';
+            addressDiv.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium text-lg">${address.cryptocurrency}</span>
+                        <span class="text-sm text-gray-500">Index: ${address.address_index}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-600">Address:</span>
+                        <div class="font-mono text-sm bg-white p-2 rounded border break-all">
+                            ${address.address}
+                        </div>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-600">Derivation Path:</span>
+                        <code class="text-sm">${address.derivation_path}</code>
+                    </div>
+                    ${address.label ? `<div class="text-sm"><span class="text-gray-600">Label:</span> ${address.label}</div>` : ''}
+                    <div class="text-xs text-gray-500">
+                        Created: ${new Date(address.created_at).toLocaleString()}
+                    </div>
+                </div>
+            `;
+            
+            container.insertBefore(addressDiv, container.firstChild);
+        }
+    </script>
+</body>
+</html>
