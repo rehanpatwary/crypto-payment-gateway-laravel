@@ -35,14 +35,28 @@ class Cryptocurrency extends Model
         'decimals' => 'integer'
     ];
 
-    public function userAddresses(): HasMany
+    public function walletAddresses(): HasMany
     {
-        return $this->hasMany(UserAddress::class);
+        return $this->hasMany(WalletAddress::class);
     }
 
-    public function userTransactions(): HasMany
+    public function paymentTransactions(): HasMany
     {
-        return $this->hasMany(UserTransaction::class);
+        return $this->hasMany(PaymentTransaction::class);
+    }
+
+    public function getAvailableWalletAddress(): ?WalletAddress
+    {
+        return $this->walletAddresses()
+            ->where('is_active', true)
+            ->orderBy('last_used_at', 'asc')
+            ->first();
+    }
+
+    public function calculateFee(float $amount): float
+    {
+        $percentageFee = $amount * ($this->fee_percentage / 100);
+        return $percentageFee + $this->fixed_fee;
     }
 
     public function isValidAmount(float $amount): bool
@@ -61,5 +75,15 @@ class Cryptocurrency extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeTokens($query)
+    {
+        return $query->where('is_token', true);
+    }
+
+    public function scopeNativeCoins($query)
+    {
+        return $query->where('is_token', false);
     }
 }
